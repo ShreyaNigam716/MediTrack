@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db');
 const { asyncHandler, required, buildUpdate, httpError } = require('../utils');
+const bcrypt = require('bcryptjs');
 
 const FIELDS = ['first_name', 'last_name', 'dob', 'gender', 'phone', 'email', 'address', 'blood_group'];
 // password_hash is deliberately left out so it never leaves the server
@@ -39,10 +40,12 @@ router.get('/:id', asyncHandler(async (req, res) => {
 // POST /api/patients
 router.post('/', asyncHandler(async (req, res) => {
   required(req.body, ['first_name', 'last_name', 'dob', 'gender']);
-  const cols = FIELDS.filter((f) => req.body[f] !== undefined);
+  const data = { ...req.body };
+  if (req.body.password) data.password_hash = await bcrypt.hash(req.body.password, 10);
+  const cols = [...FIELDS, 'password_hash'].filter((f) => data[f] !== undefined);
   const [result] = await pool.query(
     `INSERT INTO patient_master (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
-    cols.map((c) => req.body[c])
+    cols.map((c) => data[c])
   );
   res.status(201).json({ patient_id: result.insertId, message: 'Patient registered' });
 }));

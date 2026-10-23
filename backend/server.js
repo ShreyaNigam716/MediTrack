@@ -3,18 +3,62 @@ const cors = require('cors');
 require('dotenv').config();
 const pool = require('./db');
 const errorHandler = require('./middleware/errorHandler');
+const { authenticate, access } = require('./middleware/auth');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Health + DB check
+// ---------- Public ----------
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', project: 'MediTrack' });
 });
 
-app.get('/api/db-check', async (req, res) => {
+app.use('/api/auth', require('./routes/auth'));
+
+// ---------- Patient-only (own data) ----------
+app.use('/api/me', require('./routes/me'));
+
+// ---------- Staff routes: login required + role rules ----------
+// read = extra roles allowed for GET, write = roles allowed for everything (GET included)
+const STAFF = ['doctor', 'lab_technician', 'admin', 'staff'];
+
+app.use('/api/patients', authenticate,
+  access({ read: STAFF, write: ['admin', 'staff'] }), require('./routes/patients'));
+
+app.use('/api/employees', authenticate,
+  access({ read: STAFF, write: ['admin'] }), require('./routes/employees'));
+
+app.use('/api/lookups', authenticate,
+  access({ read: STAFF, write: ['admin'] }), require('./routes/lookups'));
+
+app.use('/api/rooms', authenticate,
+  access({ read: STAFF, write: ['doctor', 'admin', 'staff'] }), require('./routes/rooms'));
+
+app.use('/api/tests', authenticate,
+  access({ read: STAFF, write: ['admin'] }), require('./routes/tests'));
+
+app.use('/api/lab-reports', authenticate,
+  access({ read: STAFF, write: ['doctor', 'lab_technician', 'admin'] }), require('./routes/labReports'));
+
+app.use('/api/medicines', authenticate,
+  access({ read: STAFF, write: ['admin', 'staff'] }), require('./routes/medicines'));
+
+app.use('/api/prescriptions', authenticate,
+  access({ read: ['admin', 'staff'], write: ['doctor'] }), require('./routes/prescriptions'));
+
+app.use('/api/inventory', authenticate,
+  access({ write: ['admin', 'staff'] }), require('./routes/inventory'));
+
+app.use('/api/billing', authenticate,
+  access({ write: ['admin', 'staff'] }), require('./routes/billing'));
+
+app.use('/api/sales', authenticate,
+  access({ write: ['admin', 'staff'] }), require('./routes/sales'));
+
+// Admin-only DB check
+app.get('/api/db-check', authenticate, access({ write: ['admin'] }), async (req, res) => {
   try {
     const [tables] = await pool.query('SHOW TABLES');
     const key = Object.keys(tables[0])[0];
@@ -29,19 +73,6 @@ app.get('/api/db-check', async (req, res) => {
     res.status(500).json({ connected: false, error: err.message });
   }
 });
-
-// Routes
-app.use('/api/patients', require('./routes/patients'));
-app.use('/api/employees', require('./routes/employees'));
-app.use('/api/lookups', require('./routes/lookups'));
-app.use('/api/rooms', require('./routes/rooms'));
-app.use('/api/tests', require('./routes/tests'));
-app.use('/api/lab-reports', require('./routes/labReports'));
-app.use('/api/medicines', require('./routes/medicines'));
-app.use('/api/prescriptions', require('./routes/prescriptions'));
-app.use('/api/inventory', require('./routes/inventory'));
-app.use('/api/billing', require('./routes/billing'));
-app.use('/api/sales', require('./routes/sales'));
 
 // Unknown API route
 app.use('/api', (req, res) => {

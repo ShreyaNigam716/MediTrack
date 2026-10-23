@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const pool = require('../db');
 const { asyncHandler, required, buildUpdate, httpError } = require('../utils');
+const bcrypt = require('bcryptjs');
+const { authorize } = require('../middleware/auth');
 
 const FIELDS = ['first_name', 'last_name', 'email', 'phone', 'role', 'hire_date', 'department_code'];
 
@@ -49,11 +51,12 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // POST /api/employees
 router.post('/', asyncHandler(async (req, res) => {
-  required(req.body, ['first_name', 'last_name', 'email', 'role', 'hire_date', 'department_code']);
-  const cols = FIELDS.filter((f) => req.body[f] !== undefined);
+  required(req.body, ['first_name', 'last_name', 'email', 'role', 'hire_date', 'department_code', 'password']);
+  const data = { ...req.body, password_hash: await bcrypt.hash(req.body.password, 10) };
+  const cols = [...FIELDS, 'password_hash'].filter((f) => data[f] !== undefined);
   const [result] = await pool.query(
     `INSERT INTO employee_master (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
-    cols.map((c) => req.body[c])
+    cols.map((c) => data[c])
   );
   res.status(201).json({ employee_id: result.insertId, message: 'Employee added' });
 }));
@@ -92,7 +95,7 @@ router.delete('/:id/specialities/:code', asyncHandler(async (req, res) => {
 }));
 
 // ---------- Paychecks ----------
-router.get('/:id/paychecks', asyncHandler(async (req, res) => {
+router.get('/:id/paychecks',authorize('admin'), asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
     `SELECT paycheck_id, pay_date, basic_salary, bonus, deductions,
             (basic_salary + bonus - deductions) AS net_pay
@@ -100,7 +103,7 @@ router.get('/:id/paychecks', asyncHandler(async (req, res) => {
   res.json(rows);
 }));
 
-router.post('/:id/paychecks', asyncHandler(async (req, res) => {
+router.post('/:id/paychecks',authorize('admin'), asyncHandler(async (req, res) => {
   required(req.body, ['pay_date', 'basic_salary']);
   const { pay_date, basic_salary, bonus = 0, deductions = 0 } = req.body;
   const [result] = await pool.query(

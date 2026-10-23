@@ -24,18 +24,15 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(rows);
 }));
 
-// POST /api/prescriptions   body: { patient_id, prescribed_by, medicine_sku, dosage, duration_days }
+// POST /api/prescriptions   body: { patient_id, medicine_sku, dosage, duration_days }
 router.post('/', asyncHandler(async (req, res) => {
-  required(req.body, ['patient_id', 'prescribed_by', 'medicine_sku', 'dosage', 'duration_days']);
-  const { patient_id, prescribed_by, medicine_sku, dosage, duration_days } = req.body;
-
-  const [[doc]] = await pool.query('SELECT role FROM employee_master WHERE employee_id = ?', [prescribed_by]);
-  if (!doc || doc.role !== 'doctor') throw httpError(403, 'Only doctors can prescribe medicines');
+  required(req.body, ['patient_id', 'medicine_sku', 'dosage', 'duration_days']);
+  const { patient_id, medicine_sku, dosage, duration_days } = req.body;
 
   const [result] = await pool.query(
     `INSERT INTO med_prescription (patient_id, prescribed_by, medicine_sku, dosage, duration_days)
      VALUES (?, ?, ?, ?, ?)`,
-    [patient_id, prescribed_by, medicine_sku, dosage, duration_days]);
+    [patient_id, req.user.id, medicine_sku, dosage, duration_days]);
   res.status(201).json({ prescription_id: result.insertId, message: 'Medicine prescribed' });
 }));
 
