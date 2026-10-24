@@ -7,7 +7,11 @@ const { authenticate, access } = require('./middleware/auth');
 
 const app = express();
 
-app.use(cors());
+// In production, only your Vercel site may call the API (set FRONTEND_URL on Render)
+app.use(cors({
+  origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : true,
+}));
+
 app.use(express.json());
 
 // ---------- Public ----------
@@ -56,6 +60,9 @@ app.use('/api/billing', authenticate,
 
 app.use('/api/sales', authenticate,
   access({ write: ['admin', 'staff'] }), require('./routes/sales'));
+
+app.use('/api/reports', authenticate,
+  access({ write: ['admin'] }), require('./routes/reports'));
 
 // Admin-only DB check
 app.get('/api/db-check', authenticate, access({ write: ['admin'] }), async (req, res) => {

@@ -25,6 +25,10 @@ module.exports = (err, req, res, next) => {
       status = 400;
       message = 'Invalid value for a field (check allowed values like role, gender, room_type)';
       break;
+    case 'ER_SIGNAL_EXCEPTION':
+      status = 400;
+      message = err.sqlMessage;
+      break;
   }
 
   if (status === 500) console.error(err);

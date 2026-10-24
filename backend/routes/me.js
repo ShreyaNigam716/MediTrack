@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../db');
 const { asyncHandler, httpError } = require('../utils');
 const { authenticate, authorize } = require('../middleware/auth');
+const { sendBillPdf, BILL_QUERY } = require('../pdf');
 
 router.use(authenticate, authorize('patient'));
 
@@ -53,6 +54,14 @@ router.get('/bills', asyncHandler(async (req, res) => {
     `SELECT bill_no, bill_date, description, amount, status
      FROM billing WHERE patient_id = ? ORDER BY bill_date DESC`, [req.user.id]);
   res.json(rows);
+}));
+
+// GET /api/me/bills/1/pdf  (only the patient's OWN bill)
+router.get('/bills/:id/pdf', asyncHandler(async (req, res) => {
+  const [[bill]] = await pool.query(
+    `${BILL_QUERY} WHERE b.bill_no = ? AND b.patient_id = ?`, [req.params.id, req.user.id]);
+  if (!bill) throw httpError(404, 'Bill not found');
+  sendBillPdf(res, bill);
 }));
 
 module.exports = router;

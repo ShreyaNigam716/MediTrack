@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db');
 const { asyncHandler, required, httpError } = require('../utils');
+const { sendBillPdf, BILL_QUERY } = require('../pdf');
 
 // GET /api/billing?patient_id=1&status=pending
 router.get('/', asyncHandler(async (req, res) => {
@@ -38,4 +39,10 @@ router.put('/:id/pay', asyncHandler(async (req, res) => {
   res.json({ message: 'Bill marked as paid' });
 }));
 
+// GET /api/billing/1/pdf
+router.get('/:id/pdf', asyncHandler(async (req, res) => {
+  const [[bill]] = await pool.query(`${BILL_QUERY} WHERE b.bill_no = ?`, [req.params.id]);
+  if (!bill) throw httpError(404, 'Bill not found');
+  sendBillPdf(res, bill);
+}));
 module.exports = router;
